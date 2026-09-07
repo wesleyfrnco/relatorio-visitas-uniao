@@ -84,6 +84,11 @@
     color: var(--ink);
   }
   textarea{ resize: vertical; min-height: 56px; }
+  textarea[readonly]{
+    background: var(--paper-2);
+    color: var(--slate);
+    cursor: default;
+  }
   input:focus, textarea:focus, select:focus{
     outline: none;
     border-color: var(--amber);
@@ -369,8 +374,8 @@
         <input type="text" id="regiao" placeholder="Ex.: Região Metropolitana">
         <label>Fechamentos acumulados da semana</label>
         <textarea id="fechamentoSemana" placeholder="Ex.: 1 nova rota fechada nesta semana..."></textarea>
-        <label>Fechamento acumulado no mês</label>
-        <textarea id="fechamento" placeholder="Ex.: 3 novas rotas Esmaltec..."></textarea>
+        <label>Fechamento acumulado no mês <span style="font-weight:400;">(somado automaticamente das semanas)</span></label>
+        <textarea id="fechamentoMesPreview" readonly placeholder="Preencha os fechamentos semanais — este campo soma sozinho."></textarea>
         <label>Observações</label>
         <textarea id="obs" placeholder="Observações gerais"></textarea>
       </div>
@@ -444,7 +449,7 @@ const DEFAULT_LOGO = "data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAlgAAACzCAYA
 let config = { companyName: "União Multimodal", logoDataUrl: DEFAULT_LOGO, employeeName: "Elizângela Franco" };
 
 let entries = [];
-let manualFields = { resumoAnterior: "", regiao: "", fechamentoSemana: "", fechamento: "", obs: "" };
+let manualFields = { resumoAnterior: "", regiao: "", fechamentosSemanais: {}, obs: "" };
 
 const TIPOS = {
   prospeccao:   { label: "Prospecção",                         short: "Prospecção" },
@@ -474,6 +479,14 @@ function getWeekRange(dateStr){
   const friday = new Date(monday);
   friday.setDate(monday.getDate() + 4); // semana útil: segunda a sexta
   return { start: monday, end: friday };
+}
+
+function isoDate(d){
+  return d.getFullYear() + "-" + pad(d.getMonth()+1) + "-" + pad(d.getDate());
+}
+
+function getWeekKey(dateStr){
+  return isoDate(getWeekRange(dateStr).start);
 }
 
 function inRange(dateStr, start, end){
@@ -511,15 +524,20 @@ function loadAll(){
   }
   $('resumoAnterior').value = manualFields.resumoAnterior || "";
   $('regiao').value = manualFields.regiao || "";
-  $('fechamentoSemana').value = manualFields.fechamentoSemana || "";
-  $('fechamento').value = manualFields.fechamento || "";
   $('obs').value = manualFields.obs || "";
+  if(!manualFields.fechamentosSemanais) manualFields.fechamentosSemanais = {};
 
   $('refDate').value = todayStr();
   $('entryData').value = todayStr();
 
+  loadFechamentoSemana();
   renderEntries();
   renderReport();
+}
+
+function loadFechamentoSemana(){
+  const ref = $('refDate').value || todayStr();
+  $('fechamentoSemana').value = manualFields.fechamentosSemanais[getWeekKey(ref)] || "";
 }
 
 function saveConfig(){
@@ -537,13 +555,12 @@ function saveEntries(){
 }
 
 function saveManualFields(){
-  manualFields = {
-    resumoAnterior: $('resumoAnterior').value,
-    regiao: $('regiao').value,
-    fechamentoSemana: $('fechamentoSemana').value,
-    fechamento: $('fechamento').value,
-    obs: $('obs').value
-  };
+  manualFields.resumoAnterior = $('resumoAnterior').value;
+  manualFields.regiao = $('regiao').value;
+  manualFields.obs = $('obs').value;
+  if(!manualFields.fechamentosSemanais) manualFields.fechamentosSemanais = {};
+  const ref = $('refDate').value || todayStr();
+  manualFields.fechamentosSemanais[getWeekKey(ref)] = $('fechamentoSemana').value;
   try{
     localStorage.setItem(LS_PREFIX + 'manualFields', JSON.stringify(manualFields));
   }catch(e){ console.error('Erro ao salvar campos', e); }
@@ -613,6 +630,19 @@ function breakdownByTipo(list, withNames){
 }
 
 // ---------- report ----------
+function computeMonthlyFechamentoText(refDateStr){
+  const fs = manualFields.fechamentosSemanais || {};
+  const refMonthKey = refDateStr.slice(0,7); // "YYYY-MM"
+  const linhas = Object.keys(fs)
+    .filter(weekKey => weekKey.slice(0,7) === refMonthKey && fs[weekKey] && fs[weekKey].trim())
+    .sort()
+    .map(weekKey => {
+      const { start, end } = getWeekRange(weekKey);
+      return "Semana " + fmtDate(start) + " a " + fmtDate(end) + ": " + fs[weekKey].trim();
+    });
+  return linhas.join("\n");
+}
+
 function renderReport(){
   const ref = $('refDate').value || todayStr();
   const { start, end } = getWeekRange(ref);
@@ -632,10 +662,13 @@ function renderReport(){
 
   $('repPeriod').innerHTML = "Semana: " + fmtDate(start) + " a " + fmtDate(end) + "<br>Mês de referência: " + monthName(ref);
 
+  const fechamentoMesTexto = computeMonthlyFechamentoText(ref);
+  $('fechamentoMesPreview').value = fechamentoMesTexto;
+
   $('repResumoAnterior').textContent = manualFields.resumoAnterior || $('resumoAnterior').value || "—";
   $('repRegiao').textContent = manualFields.regiao || $('regiao').value || "—";
-  $('repFechamentoSemana').textContent = manualFields.fechamentoSemana || $('fechamentoSemana').value || "—";
-  $('repFechamento').textContent = manualFields.fechamento || $('fechamento').value || "—";
+  $('repFechamentoSemana').textContent = $('fechamentoSemana').value || "—";
+  $('repFechamento').innerHTML = fechamentoMesTexto ? fechamentoMesTexto.replace(/\n/g, "<br>") : "—";
   $('repObs').textContent = manualFields.obs || $('obs').value || "—";
 
   $('repVisSemanaCount').textContent = visSemana.length;
@@ -684,11 +717,11 @@ $('logoInput').addEventListener('change', function(e){
   $(id).addEventListener('change', () => { saveConfig(); flashSaved(); renderReport(); });
 });
 
-['resumoAnterior','regiao','fechamentoSemana','fechamento','obs'].forEach(id => {
+['resumoAnterior','regiao','fechamentoSemana','obs'].forEach(id => {
   $(id).addEventListener('change', () => { saveManualFields(); flashSaved(); renderReport(); });
 });
 
-$('refDate').addEventListener('change', renderReport);
+$('refDate').addEventListener('change', () => { loadFechamentoSemana(); renderReport(); });
 
 loadAll();
 </script>
