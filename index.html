@@ -125,8 +125,9 @@
     margin-right: 6px;
     color: var(--white);
   }
+  .tag.prospeccao{ background: var(--slate); }
+  .tag.manutencao{ background: #7A6A9B; }
   .tag.oportunidade{ background: var(--amber); }
-  .tag.visita{ background: var(--slate); }
   .entry-item .name{ flex: 1; }
   .entry-item .del{
     background: none;
@@ -265,6 +266,40 @@
     color: var(--slate);
     font-size: 11.5px;
   }
+  .visit-breakdown{
+    margin-top: 8px;
+    display: flex;
+    flex-direction: column;
+    gap: 5px;
+  }
+  .vb-row{
+    display: flex;
+    align-items: baseline;
+    gap: 8px;
+    font-size: 11.5px;
+  }
+  .vb-dot{
+    width: 8px; height: 8px;
+    border-radius: 50%;
+    flex-shrink: 0;
+  }
+  .vb-dot.prospeccao{ background: var(--slate); }
+  .vb-dot.manutencao{ background: #7A6A9B; }
+  .vb-dot.oportunidade{ background: var(--amber); }
+  .vb-label{
+    color: var(--ink);
+    font-weight: 600;
+    min-width: 150px;
+  }
+  .vb-count{
+    color: var(--amber);
+    font-weight: 700;
+    min-width: 18px;
+  }
+  .vb-names{
+    color: var(--slate);
+    font-size: 11px;
+  }
   .report-footer{
     margin-top: 16px;
     font-size: 10.5px;
@@ -304,11 +339,12 @@
       </div>
 
       <div class="panel">
-        <h2>Registrar oportunidade / visita</h2>
+        <h2>Registrar visita</h2>
         <label>Tipo</label>
         <select id="entryTipo">
-          <option value="oportunidade">Oportunidade de negócio</option>
-          <option value="visita">Visita</option>
+          <option value="prospeccao">Prospecção</option>
+          <option value="manutencao">Visita - manutenção</option>
+          <option value="oportunidade">Visita - oportunidade de negócio</option>
         </select>
         <div class="row">
           <div>
@@ -364,20 +400,18 @@
             <td class="value" id="repResumoAnterior">—</td>
           </tr>
           <tr>
-            <td class="label">Oportunidades de negócio — semana</td>
-            <td class="value"><span class="count" id="repOpSemanaCount">0</span><span class="names" id="repOpSemanaNames">nenhum cliente registrado</span></td>
-          </tr>
-          <tr>
-            <td class="label">Oportunidades de negócio — acumulado no mês</td>
-            <td class="value"><span class="count" id="repOpMesCount">0</span></td>
-          </tr>
-          <tr>
             <td class="label">Quantidade de visitas — semana</td>
-            <td class="value"><span class="count" id="repVisSemanaCount">0</span><span class="names" id="repVisSemanaNames">nenhum cliente registrado</span></td>
+            <td class="value">
+              <span class="count" id="repVisSemanaCount">0</span>
+              <div class="visit-breakdown" id="repVisSemanaBreakdown"></div>
+            </td>
           </tr>
           <tr>
             <td class="label">Quantidade de visitas — acumulado no mês</td>
-            <td class="value"><span class="count" id="repVisMesCount">0</span></td>
+            <td class="value">
+              <span class="count" id="repVisMesCount">0</span>
+              <div class="visit-breakdown" id="repVisMesBreakdown"></div>
+            </td>
           </tr>
           <tr>
             <td class="label">Semana atual</td>
@@ -405,6 +439,12 @@ let config = { companyName: "União Multimodal", logoDataUrl: DEFAULT_LOGO, empl
 
 let entries = [];
 let manualFields = { resumoAnterior: "", regiao: "", fechamento: "", obs: "" };
+
+const TIPOS = {
+  prospeccao:   { label: "Prospecção",                         short: "Prospecção" },
+  manutencao:   { label: "Visita - manutenção",                short: "Manutenção" },
+  oportunidade: { label: "Visita - oportunidade de negócio",   short: "Oportunidade" }
+};
 
 const $ = (id) => document.getElementById(id);
 
@@ -537,7 +577,7 @@ function renderEntries(){
   }
   list.innerHTML = sorted.map(e => `
     <div class="entry-item">
-      <span class="tag ${e.tipo}">${e.tipo === 'oportunidade' ? 'Oport.' : 'Visita'}</span>
+      <span class="tag ${e.tipo}">${(TIPOS[e.tipo] || {}).short || e.tipo}</span>
       <span class="name">${escapeHtml(e.cliente)} <span style="color:#9A9382">— ${fmtDate(new Date(e.data + 'T00:00:00'))}</span></span>
       <button class="del" onclick="removeEntry(${e.id})" title="Remover">×</button>
     </div>
@@ -548,15 +588,29 @@ function escapeHtml(s){
   return s.replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
 }
 
+function breakdownByTipo(list, withNames){
+  return Object.keys(TIPOS).map(tipoId => {
+    const items = list.filter(e => e.tipo === tipoId);
+    const namesHtml = withNames
+      ? `<span class="vb-names">${items.length ? items.map(e => escapeHtml(e.cliente)).join(', ') : 'nenhum cliente registrado'}</span>`
+      : '';
+    return `
+      <div class="vb-row">
+        <span class="vb-dot ${tipoId}"></span>
+        <span class="vb-label">${TIPOS[tipoId].label}</span>
+        <span class="vb-count">${items.length}</span>
+        ${namesHtml}
+      </div>`;
+  }).join('');
+}
+
 // ---------- report ----------
 function renderReport(){
   const ref = $('refDate').value || todayStr();
   const { start, end } = getWeekRange(ref);
 
-  const opSemana = entries.filter(e => e.tipo === 'oportunidade' && inRange(e.data, start, end));
-  const opMes = entries.filter(e => e.tipo === 'oportunidade' && inSameMonth(e.data, ref));
-  const visSemana = entries.filter(e => e.tipo === 'visita' && inRange(e.data, start, end));
-  const visMes = entries.filter(e => e.tipo === 'visita' && inSameMonth(e.data, ref));
+  const visSemana = entries.filter(e => inRange(e.data, start, end));
+  const visMes = entries.filter(e => inSameMonth(e.data, ref));
 
   $('repCompany').textContent = config.companyName || "Nome da empresa";
   $('repPerson').textContent = config.employeeName || "Elizângela Franco";
@@ -575,13 +629,10 @@ function renderReport(){
   $('repFechamento').textContent = manualFields.fechamento || $('fechamento').value || "—";
   $('repObs').textContent = manualFields.obs || $('obs').value || "—";
 
-  $('repOpSemanaCount').textContent = opSemana.length;
-  $('repOpSemanaNames').textContent = opSemana.length ? opSemana.map(e => e.cliente).join(', ') : "nenhum cliente registrado";
-  $('repOpMesCount').textContent = opMes.length;
-
   $('repVisSemanaCount').textContent = visSemana.length;
-  $('repVisSemanaNames').textContent = visSemana.length ? visSemana.map(e => e.cliente).join(', ') : "nenhum cliente registrado";
+  $('repVisSemanaBreakdown').innerHTML = breakdownByTipo(visSemana, true);
   $('repVisMesCount').textContent = visMes.length;
+  $('repVisMesBreakdown').innerHTML = breakdownByTipo(visMes, false);
 
   $('repFooter').textContent = "Gerado em " + fmtDate(new Date());
 }
