@@ -334,7 +334,7 @@
 
       <div class="panel">
         <h2>Data de referência</h2>
-        <label>Data do relatório (define a semana e o mês)</label>
+        <label>Data do relatório (define a semana útil: segunda a sexta, e o mês)</label>
         <input type="date" id="refDate">
       </div>
 
@@ -465,9 +465,9 @@ function getWeekRange(dateStr){
   const diffToMonday = (day === 0) ? -6 : (1 - day);
   const monday = new Date(d);
   monday.setDate(d.getDate() + diffToMonday);
-  const sunday = new Date(monday);
-  sunday.setDate(monday.getDate() + 6);
-  return { start: monday, end: sunday };
+  const friday = new Date(monday);
+  friday.setDate(monday.getDate() + 4); // semana útil: segunda a sexta
+  return { start: monday, end: friday };
 }
 
 function inRange(dateStr, start, end){
