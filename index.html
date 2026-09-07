@@ -365,8 +365,10 @@
         <h2>Campos do relatório</h2>
         <label>Resumo da semana anterior</label>
         <textarea id="resumoAnterior" placeholder="Ex.: Bom desempenho, fechamos 3 rotas novas..."></textarea>
-        <label>Semana atual (região)</label>
+        <label>Região de atuação da semana</label>
         <input type="text" id="regiao" placeholder="Ex.: Região Metropolitana">
+        <label>Fechamentos acumulados da semana</label>
+        <textarea id="fechamentoSemana" placeholder="Ex.: 1 nova rota fechada nesta semana..."></textarea>
         <label>Fechamento acumulado no mês</label>
         <textarea id="fechamento" placeholder="Ex.: 3 novas rotas Esmaltec..."></textarea>
         <label>Observações</label>
@@ -414,8 +416,12 @@
             </td>
           </tr>
           <tr>
-            <td class="label">Semana atual</td>
+            <td class="label">Região de atuação da semana</td>
             <td class="value" id="repRegiao">—</td>
+          </tr>
+          <tr>
+            <td class="label">Fechamentos acumulados da semana</td>
+            <td class="value" id="repFechamentoSemana">—</td>
           </tr>
           <tr>
             <td class="label">Fechamento acumulado no mês</td>
@@ -438,7 +444,7 @@ const DEFAULT_LOGO = "data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAlgAAACzCAYA
 let config = { companyName: "União Multimodal", logoDataUrl: DEFAULT_LOGO, employeeName: "Elizângela Franco" };
 
 let entries = [];
-let manualFields = { resumoAnterior: "", regiao: "", fechamento: "", obs: "" };
+let manualFields = { resumoAnterior: "", regiao: "", fechamentoSemana: "", fechamento: "", obs: "" };
 
 const TIPOS = {
   prospeccao:   { label: "Prospecção",                         short: "Prospecção" },
@@ -505,6 +511,7 @@ function loadAll(){
   }
   $('resumoAnterior').value = manualFields.resumoAnterior || "";
   $('regiao').value = manualFields.regiao || "";
+  $('fechamentoSemana').value = manualFields.fechamentoSemana || "";
   $('fechamento').value = manualFields.fechamento || "";
   $('obs').value = manualFields.obs || "";
 
@@ -533,6 +540,7 @@ function saveManualFields(){
   manualFields = {
     resumoAnterior: $('resumoAnterior').value,
     regiao: $('regiao').value,
+    fechamentoSemana: $('fechamentoSemana').value,
     fechamento: $('fechamento').value,
     obs: $('obs').value
   };
@@ -626,6 +634,7 @@ function renderReport(){
 
   $('repResumoAnterior').textContent = manualFields.resumoAnterior || $('resumoAnterior').value || "—";
   $('repRegiao').textContent = manualFields.regiao || $('regiao').value || "—";
+  $('repFechamentoSemana').textContent = manualFields.fechamentoSemana || $('fechamentoSemana').value || "—";
   $('repFechamento').textContent = manualFields.fechamento || $('fechamento').value || "—";
   $('repObs').textContent = manualFields.obs || $('obs').value || "—";
 
@@ -675,7 +684,7 @@ $('logoInput').addEventListener('change', function(e){
   $(id).addEventListener('change', () => { saveConfig(); flashSaved(); renderReport(); });
 });
 
-['resumoAnterior','regiao','fechamento','obs'].forEach(id => {
+['resumoAnterior','regiao','fechamentoSemana','fechamento','obs'].forEach(id => {
   $(id).addEventListener('change', () => { saveManualFields(); flashSaved(); renderReport(); });
 });
 
